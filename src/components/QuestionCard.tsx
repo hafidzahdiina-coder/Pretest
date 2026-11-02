@@ -1,6 +1,8 @@
 import React from 'react';
 import { Question } from '../types/quiz';
 import { AdventureIllustration } from './AdventureIllustrations';
+import { RealIllustration } from './RealIllustrations';
+import { MathText } from './MathText';
 import { Check, Info, HelpCircle } from 'lucide-react';
 
 interface QuestionCardProps {
@@ -51,7 +53,16 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
             <Info className="w-4 h-4 text-sky-600 shrink-0" />
             <span>{question.conceptBox.title}</span>
           </div>
-          <p className="leading-relaxed text-sky-800/90">{question.conceptBox.content}</p>
+          <p className="leading-relaxed text-sky-800/90">
+            <MathText text={question.conceptBox.content} />
+          </p>
+        </div>
+      )}
+
+      {/* Real-life Illustrations for Daily Assessment */}
+      {question.realIllustrationId && (
+        <div className="mb-6">
+          <RealIllustration id={question.realIllustrationId} />
         </div>
       )}
 
@@ -62,10 +73,10 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         </div>
       )}
 
-      {/* Question Prompt */}
+      {/* Question Prompt with mathematical equation formatting */}
       <div className="mb-6">
         <div className="text-slate-900 font-semibold text-base sm:text-lg leading-relaxed whitespace-pre-line">
-          {question.prompt}
+          <MathText text={question.prompt} />
         </div>
         <p className="text-xs text-slate-500 mt-2 italic flex items-center gap-1.5">
           <HelpCircle className="w-3.5 h-3.5 text-slate-400" />
@@ -98,7 +109,9 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                 >
                   {opt.label}
                 </span>
-                <span className="text-sm sm:text-base font-medium">{opt.text}</span>
+                <span className="text-sm sm:text-base font-medium">
+                  <MathText text={opt.text} />
+                </span>
               </button>
             );
           })}
@@ -140,7 +153,9 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                 </div>
                 <div className="flex items-center gap-2 text-sm sm:text-base">
                   <span className="font-bold text-indigo-600">[{opt.label}]</span>
-                  <span>{opt.text}</span>
+                  <span>
+                    <MathText text={opt.text} />
+                  </span>
                 </div>
               </button>
             );
@@ -167,7 +182,9 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                 return (
                   <tr key={st.id} className="hover:bg-slate-50/70 transition-colors">
                     <td className="py-3 px-4 text-center font-bold text-slate-600">{st.label}.</td>
-                    <td className="py-3 px-4 font-medium text-slate-800">{st.text}</td>
+                    <td className="py-3 px-4 font-medium text-slate-800">
+                      <MathText text={st.text} />
+                    </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center justify-center gap-2">
                         <button
@@ -218,7 +235,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                 <div key={item.id} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col gap-2">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-slate-700 text-sm">
-                      {item.label}. <span className="text-indigo-600 font-mono text-base">{item.text}</span>
+                      {item.label}. <span className="text-indigo-600 font-mono text-base"><MathText text={item.text} /></span>
                     </span>
                     {selectedCategory && (
                       <span className="text-xs font-semibold text-emerald-600 flex items-center gap-1">
@@ -256,7 +273,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
             <div className="flex flex-wrap gap-2 text-xs">
               {(question.matchingChoices || []).map((c) => (
                 <span key={c.code} className="px-2.5 py-1 rounded-md bg-white border border-amber-300 font-medium text-amber-900 shadow-xs">
-                  <strong className="text-amber-700 font-bold mr-1">{c.code}.</strong> {c.text}
+                  <strong className="text-amber-700 font-bold mr-1">{c.code}.</strong> <MathText text={c.text} />
                 </span>
               ))}
             </div>
@@ -277,7 +294,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                       {pair.num}
                     </span>
                     <span className="text-sm sm:text-base font-semibold text-slate-800">
-                      {pair.question}
+                      <MathText text={pair.question} />
                     </span>
                   </div>
 

@@ -1,9 +1,22 @@
-import { Question } from '../types/quiz';
+import { Question, ExamSessionConfig } from '../types/quiz';
+
+export const PRETEST_CONFIG: ExamSessionConfig = {
+  id: 'pre_test',
+  title: 'Pre-Test: Pecahan, Desimal, Persen, dan Notasi Ilmiah',
+  subtitle: 'Matematika Cambridge Kelas 7 • Bab Bilangan Rasional',
+  token: 'PRETEST7',
+  durationMinutes: 70,
+  totalQuestions: 25,
+  maxScore: 40,
+  kkm: 75,
+  badge: 'Sesi: Pre-Test & Petualangan Pecahan',
+  themeColor: 'from-indigo-700 via-indigo-800 to-blue-800',
+};
 
 export const EXAM_METADATA = {
   title: 'Penilaian Harian: Pecahan, Desimal, Persen, dan Notasi Ilmiah',
   subtitle: 'Matematika Cambridge Kelas 7 • Bab Bilangan Rasional',
-  school: 'SMP Ar Rohmah Bogor IIBS',
+  school: 'SMP Ar Rohmah Bogor',
   durationMinutes: 70,
   maxScore: 40,
   kkm: 75,

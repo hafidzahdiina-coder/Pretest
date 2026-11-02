@@ -1,10 +1,15 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import confetti from 'canvas-confetti';
 import {
   EXAM_METADATA,
   QUESTIONS_DATA,
+  PRETEST_CONFIG,
 } from './data/questions';
-import { ExamSubmission, StudentAnswers } from './types/quiz';
+import {
+  DAILY_ASSESSMENT_CONFIG,
+  DAILY_ASSESSMENT_QUESTIONS,
+} from './data/dailyAssessmentQuestions';
+import { ExamSubmission, StudentAnswers, SessionId, StudentLiveMonitor } from './types/quiz';
 import { evaluateExam } from './utils/mathGrading';
 import { getSampleSubmissions } from './data/demoSubmissions';
 import { AntiCheatMonitor } from './components/AntiCheatMonitor';
@@ -14,7 +19,6 @@ import { TeacherDashboard } from './components/TeacherDashboard';
 import { TeacherPinModal } from './components/TeacherPinModal';
 import {
   Clock,
-  ShieldCheck,
   ShieldAlert,
   Award,
   ChevronLeft,
@@ -22,7 +26,6 @@ import {
   Bookmark,
   CheckCircle2,
   AlertTriangle,
-  School,
   Lock,
   Maximize2,
   BookOpen,
@@ -30,13 +33,19 @@ import {
   Sparkles,
   Layers,
   HelpCircle,
+  KeyRound,
+  Check,
 } from 'lucide-react';
 
-const STORAGE_KEY = 'arrohmah_exam_submissions_v1';
+const STORAGE_KEY = 'arrohmah_exam_submissions_v2';
 
 export default function App() {
   // Screen views: 'register' | 'exam' | 'result'
   const [view, setView] = useState<'register' | 'exam' | 'result'>('register');
+
+  // Selected session: 'daily_assessment' (default) or 'pre_test'
+  const [selectedSession, setSelectedSession] = useState<SessionId>('daily_assessment');
+  const [sessionTokenInput, setSessionTokenInput] = useState(DAILY_ASSESSMENT_CONFIG.token);
 
   // Student registration state
   const [studentName, setStudentName] = useState('');
@@ -48,7 +57,7 @@ export default function App() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<StudentAnswers>({});
   const [flaggedQuestions, setFlaggedQuestions] = useState<Record<number, boolean>>({});
-  const [timeLeft, setTimeLeft] = useState(EXAM_METADATA.durationMinutes * 60); // 70 mins = 4200 s
+  const [timeLeft, setTimeLeft] = useState(70 * 60); // 70 mins = 4200 s
   const [startTime, setStartTime] = useState<number>(0);
 
   // Anti-cheating state
@@ -68,10 +77,28 @@ export default function App() {
 
   const [activeSubmission, setActiveSubmission] = useState<ExamSubmission | null>(null);
 
+  // Live Monitoring State for Teacher Dashboard
+  const [liveStudents, setLiveStudents] = useState<StudentLiveMonitor[]>([]);
+
   // Modals
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [showTeacherPinModal, setShowTeacherPinModal] = useState(false);
   const [showTeacherDashboard, setShowTeacherDashboard] = useState(false);
+
+  // Active Questions & Config based on selected session
+  const activeQuestions = useMemo(() => {
+    return selectedSession === 'daily_assessment' ? DAILY_ASSESSMENT_QUESTIONS : QUESTIONS_DATA;
+  }, [selectedSession]);
+
+  const activeConfig = useMemo(() => {
+    return selectedSession === 'daily_assessment' ? DAILY_ASSESSMENT_CONFIG : PRETEST_CONFIG;
+  }, [selectedSession]);
+
+  // Sync token input when session switches
+  const handleSelectSession = (sId: SessionId) => {
+    setSelectedSession(sId);
+    setSessionTokenInput(sId === 'daily_assessment' ? DAILY_ASSESSMENT_CONFIG.token : PRETEST_CONFIG.token);
+  };
 
   // Save submissions to localStorage
   useEffect(() => {
@@ -99,6 +126,51 @@ export default function App() {
 
     return () => clearInterval(timer);
   }, [view]);
+
+  // Update live student monitor record while exam is active
+  useEffect(() => {
+    if (view === 'exam') {
+      const isFullscreen = !!document.fullscreenElement;
+      const issues: string[] = [];
+      if (violations > 0) issues.push(`${violations}x Pindah Tab`);
+      if (!isFullscreen) issues.push('Layar Tidak Penuh');
+
+      const liveEntry: StudentLiveMonitor = {
+        id: 'active_student_session',
+        sessionId: selectedSession,
+        studentName: studentName || 'Siswa',
+        studentClass,
+        studentNis: studentNis || '-',
+        currentQuestionIndex,
+        answeredCount: Object.keys(answers).length,
+        totalQuestions: activeQuestions.length,
+        timeLeftSeconds: timeLeft,
+        tabViolations: violations,
+        isFullscreen,
+        status: violations >= 3 ? 'disqualified' : issues.length > 0 ? 'trouble' : 'active',
+        lastPing: new Date().toLocaleTimeString('id-ID'),
+        issues,
+      };
+
+      setLiveStudents([liveEntry]);
+    } else {
+      setLiveStudents([]);
+    }
+  }, [view, selectedSession, studentName, studentClass, studentNis, currentQuestionIndex, answers, timeLeft, violations, activeQuestions.length]);
+
+  // Teacher Action: Reset Tab Violations (Dispensasi)
+  const handleResetStudentViolations = () => {
+    setViolations(0);
+    setViolationLogs((prev) => [
+      ...prev,
+      { time: new Date().toLocaleTimeString('id-ID'), reason: 'Dispensasi / Reset Pelanggaran oleh Guru' },
+    ]);
+  };
+
+  // Teacher Action: Add extra time (+10 min)
+  const handleAddStudentTime = (_stId: string, minutes: number) => {
+    setTimeLeft((prev) => prev + minutes * 60);
+  };
 
   // Handle student answers
   const handleAnswerChange = (questionId: number, val: any) => {
@@ -129,8 +201,8 @@ export default function App() {
   };
 
   const answeredCount = useMemo(() => {
-    return QUESTIONS_DATA.filter((q) => isQuestionAnswered(q.id)).length;
-  }, [answers]);
+    return activeQuestions.filter((q) => isQuestionAnswered(q.id)).length;
+  }, [activeQuestions, answers]);
 
   // Start Exam
   const handleStartExam = async (e: React.FormEvent) => {
@@ -140,12 +212,20 @@ export default function App() {
       return;
     }
 
+    // Validate Token Kode Ujian
+    const requiredToken =
+      selectedSession === 'daily_assessment' ? DAILY_ASSESSMENT_CONFIG.token : PRETEST_CONFIG.token;
+    if (sessionTokenInput.trim().toUpperCase() !== requiredToken.toUpperCase()) {
+      setRegError(`Kode Ujian / Token salah. Hubungi guru pengawas atau gunakan token: ${requiredToken}`);
+      return;
+    }
+
     setRegError('');
     setAnswers({});
     setFlaggedQuestions({});
     setViolations(0);
     setViolationLogs([]);
-    setTimeLeft(EXAM_METADATA.durationMinutes * 60);
+    setTimeLeft(activeConfig.durationMinutes * 60);
     setStartTime(Date.now());
     setCurrentQuestionIndex(0);
 
@@ -187,6 +267,7 @@ export default function App() {
       violationLogs,
       durationSeconds,
       {
+        sessionId: selectedSession,
         autoSubmittedDueToCheating: dueToCheating,
         autoSubmittedDueToTimeout: dueToTimeout,
       }
@@ -197,11 +278,11 @@ export default function App() {
     setShowSubmitModal(false);
     setView('result');
 
-    // Confetti celebration if passed or finished
+    // Confetti celebration
     try {
       confetti({
-        particleCount: 80,
-        spread: 70,
+        particleCount: 90,
+        spread: 80,
         origin: { y: 0.6 },
       });
     } catch {
@@ -223,20 +304,24 @@ export default function App() {
   };
 
   // Active question object
-  const currentQuestion = QUESTIONS_DATA[currentQuestionIndex];
+  const currentQuestion = activeQuestions[currentQuestionIndex] || activeQuestions[0];
 
   return (
     <div className="min-h-screen bg-slate-100/60 font-sans text-slate-800 flex flex-col">
       {/* =========================================================================
-          SCREEN 1: REGISTRATION / WELCOME SCREEN
+          SCREEN 1: REGISTRATION / WELCOME SCREEN (WITH AR ROHMAH LOGO & SESSIONS)
       ========================================================================= */}
       {view === 'register' && (
         <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6">
           {/* Top Bar for Teacher Access */}
           <div className="w-full max-w-3xl flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2 text-indigo-700 font-bold text-xs sm:text-sm">
-              <School className="w-5 h-5" />
-              <span>{EXAM_METADATA.school}</span>
+            <div className="flex items-center gap-2.5 text-slate-800 font-bold text-xs sm:text-sm">
+              <img
+                src="/assets/aistudio/images_226422da.png"
+                alt="Logo Ar Rohmah"
+                className="w-7 h-7 object-contain rounded-full shadow-xs"
+              />
+              <span>SMP Ar Rohmah Bogor • CBT Matematika Kelas 7</span>
             </div>
 
             <button
@@ -250,21 +335,93 @@ export default function App() {
           </div>
 
           <div className="w-full max-w-3xl bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
-            {/* Header Banner */}
-            <div className="bg-gradient-to-r from-indigo-700 via-indigo-800 to-blue-800 text-white p-6 sm:p-8 relative">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-500/30 text-indigo-100 border border-indigo-400/30 mb-3">
-                <Sparkles className="w-3.5 h-3.5" />
-                CBT Daily Assessment & Pre-Test
+            {/* Header Banner with Official Ar Rohmah Logo */}
+            <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-6 sm:p-8 relative">
+              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
+                <img
+                  src="/assets/aistudio/images_226422da.png"
+                  alt="Logo Resmi SMP Ar Rohmah Bogor"
+                  className="w-20 h-20 sm:w-24 sm:h-24 object-contain rounded-full bg-white p-1.5 shadow-md shrink-0"
+                />
+
+                <div className="text-center sm:text-left space-y-1.5">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-500/30 text-blue-200 border border-blue-400/30">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    CBT Assessment System • TP 2026/2027
+                  </div>
+                  <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+                    SMP AR ROHMAH BOGOR
+                  </h1>
+                  <p className="text-blue-200 text-xs sm:text-sm font-medium">
+                    Matematika Kelas 7 • Bab 2: Bilangan Rasional (NPSN: 70061534)
+                  </p>
+                </div>
               </div>
-              <h1 className="text-[32px] font-bold tracking-tight" style={{ fontSize: '32px', fontWeight: 'bold' }}>
-                {EXAM_METADATA.title}
-              </h1>
-              <p className="text-indigo-200 text-xs sm:text-sm mt-1.5 font-medium">
-                {EXAM_METADATA.subtitle} • {EXAM_METADATA.school}
-              </p>
             </div>
 
-            <div className="p-6 sm:p-8 space-y-8">
+            <div className="p-6 sm:p-8 space-y-6">
+              {/* Session Selector (Pre-Test vs Daily Assessment) */}
+              <div>
+                <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-2">
+                  Pilih Sesi Ujian:
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Sesi 2: Daily Assessment (Bab 2) - New & Official */}
+                  <button
+                    type="button"
+                    onClick={() => handleSelectSession('daily_assessment')}
+                    className={`p-4 rounded-2xl border-2 text-left transition-all relative ${
+                      selectedSession === 'daily_assessment'
+                        ? 'border-blue-600 bg-blue-50/70 shadow-sm'
+                        : 'border-slate-200 hover:border-slate-300 bg-slate-50/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-blue-600 text-white">
+                        Sesi Resmi Utama
+                      </span>
+                      {selectedSession === 'daily_assessment' && (
+                        <Check className="w-4 h-4 text-blue-600 font-bold" />
+                      )}
+                    </div>
+                    <h3 className="font-bold text-slate-900 text-sm">Daily Assessment: Bab 2</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      25 Soal Lengkap: Pizza, Cokelat, Jus, Pesepeda, & 36 Siswa (6 Tipe Soal).
+                    </p>
+                    <div className="mt-2 text-[11px] font-mono text-blue-700 font-bold flex items-center gap-1">
+                      <KeyRound className="w-3 h-3" /> Token: {DAILY_ASSESSMENT_CONFIG.token}
+                    </div>
+                  </button>
+
+                  {/* Sesi 1: Pre-Test (Petualangan Pecahan) */}
+                  <button
+                    type="button"
+                    onClick={() => handleSelectSession('pre_test')}
+                    className={`p-4 rounded-2xl border-2 text-left transition-all relative ${
+                      selectedSession === 'pre_test'
+                        ? 'border-indigo-600 bg-indigo-50/70 shadow-sm'
+                        : 'border-slate-200 hover:border-slate-300 bg-slate-50/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-700">
+                        Sesi Pembuka
+                      </span>
+                      {selectedSession === 'pre_test' && (
+                        <Check className="w-4 h-4 text-indigo-600 font-bold" />
+                      )}
+                    </div>
+                    <h3 className="font-bold text-slate-900 text-sm">Pre-Test Cambridge</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      25 Soal Cambridge dengan 5 Pos Petualangan Pecahan (Kebun, Gua, Jembatan, dsb).
+                    </p>
+                    <div className="mt-2 text-[11px] font-mono text-indigo-700 font-bold flex items-center gap-1">
+                      <KeyRound className="w-3 h-3" /> Token: {PRETEST_CONFIG.token}
+                    </div>
+                  </button>
+                </div>
+              </div>
+
               {/* Exam Info Matrix */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 text-center">
@@ -292,29 +449,10 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 6 Types & Adventure Highlights */}
-              <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 text-xs sm:text-sm text-indigo-950 space-y-2">
-                <p className="font-bold text-indigo-900 flex items-center gap-1.5">
-                  <BookOpen className="w-4 h-4 text-indigo-600" />
-                  Cakupan 6 Tipe Soal & 5 Pos Petualangan:
-                </p>
-                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-indigo-900/90 pl-4 list-disc">
-                  <li>Bagian A: Pilihan Ganda Standar (Soal 1–8)</li>
-                  <li>Bagian B: Pilihan Ganda Kompleks (Soal 9–11)</li>
-                  <li>Bagian C: Benar – Salah (Soal 12–14)</li>
-                  <li>Bagian D: Klasifikasi / Pengelompokan (Soal 15–17)</li>
-                  <li>Bagian E: Menjodohkan (Soal 18–20)</li>
-                  <li>Bagian F: Isian Singkat & Uraian Runtut (Soal 21–25)</li>
-                </ul>
-                <p className="text-[11px] text-indigo-700 italic pt-1 border-t border-indigo-200/60">
-                  🗺️ Dilengkapi 5 Ilustrasi Petualangan Pecahan: Kebun Buah (Pos 1), Jembatan (Pos 3), Gua Rahasia (Pos 4), Peternakan (Pos 6), dan Kapal (Pos 7).
-                </p>
-              </div>
-
               {/* Student Registration Form */}
               <form onSubmit={handleStartExam} className="space-y-4">
                 <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider pb-1 border-b">
-                  Data Identitas Peserta Ujian
+                  Data Identitas & Token Ujian
                 </h3>
 
                 {regError && (
@@ -370,26 +508,47 @@ export default function App() {
                       className="w-full text-sm font-semibold px-4 py-2.5 rounded-xl border border-slate-300 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 outline-none"
                     />
                   </div>
+
+                  {/* Kode Token Ujian */}
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                      <span>Kode Token Ujian <span className="text-rose-500">*</span></span>
+                      <span className="text-[11px] text-indigo-600 font-mono font-bold">
+                        Gunakan: {selectedSession === 'daily_assessment' ? DAILY_ASSESSMENT_CONFIG.token : PRETEST_CONFIG.token}
+                      </span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        required
+                        value={sessionTokenInput}
+                        onChange={(e) => setSessionTokenInput(e.target.value.toUpperCase())}
+                        placeholder="Masukkan Token Ujian..."
+                        className="w-full text-sm font-mono font-bold uppercase tracking-wider px-4 py-2.5 rounded-xl border border-slate-300 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 outline-none"
+                      />
+                      <KeyRound className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+                    </div>
+                  </div>
                 </div>
 
                 {/* Anti-cheat declaration box */}
                 <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3.5 text-xs text-amber-900 flex items-start gap-2.5">
                   <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                   <div className="space-y-1">
-                    <span className="font-bold">Ketentuan Pengawasan Anti-Cheating:</span>
+                    <span className="font-bold">Ketentuan Pengawasan & Kunci Layar:</span>
                     <p className="leading-relaxed">
-                      Sistem akan mengunci layar ke mode penuh dan memantau perpindahan tab browser secara otomatis.
-                      Jika siswa berpindah tab sebanyak <strong>3 kali</strong>, sistem akan langsung mengakhiri ujian dan merekap jawaban saat itu.
+                      Sistem akan mengunci layar ke mode penuh dan memantau perpindahan tab browser.
+                      Jika terdeteksi <strong>3 kali berpindah tab</strong>, sistem akan otomatis mengakhiri ujian dan mengumpulkan jawaban.
                     </p>
                   </div>
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full py-4 px-6 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-base shadow-lg shadow-indigo-600/30 hover:shadow-indigo-600/40 transition-all flex items-center justify-center gap-2 group cursor-pointer"
+                  className="w-full py-4 px-6 rounded-2xl bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-base shadow-lg shadow-blue-700/30 hover:shadow-blue-700/40 transition-all flex items-center justify-center gap-2 group cursor-pointer"
                 >
                   <Maximize2 className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                  Mulai Ujian & Kunci Layar Penuh
+                  Mulai {activeConfig.title} & Kunci Layar Penuh
                 </button>
               </form>
             </div>
@@ -405,17 +564,19 @@ export default function App() {
           {/* Top Sticky Assessment Bar */}
           <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/90 shadow-xs px-4 py-3">
             <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
-              {/* Student identity */}
+              {/* Student identity with Logo */}
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-xs">
-                  {studentName.charAt(0).toUpperCase()}
-                </div>
+                <img
+                  src="/assets/aistudio/images_226422da.png"
+                  alt="Logo Ar Rohmah"
+                  className="w-8 h-8 object-contain rounded-full border border-slate-200"
+                />
                 <div>
                   <h2 className="text-xs sm:text-sm font-bold text-slate-800 line-clamp-1">
                     {studentName}
                   </h2>
                   <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600">
-                    {studentClass} • No: {studentNis || '-'}
+                    {activeConfig.title} • {studentClass} • No: {studentNis || '-'}
                   </span>
                 </div>
               </div>
@@ -460,7 +621,7 @@ export default function App() {
               <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                 <div
                   className="bg-indigo-600 h-full rounded-full transition-all duration-300"
-                  style={{ width: `${(answeredCount / EXAM_METADATA.totalQuestions) * 100}%` }}
+                  style={{ width: `${(answeredCount / activeQuestions.length) * 100}%` }}
                 />
               </div>
             </div>
@@ -475,7 +636,7 @@ export default function App() {
                 studentAnswer={answers[currentQuestion.id]}
                 onAnswerChange={handleAnswerChange}
                 questionIndex={currentQuestionIndex}
-                totalQuestions={QUESTIONS_DATA.length}
+                totalQuestions={activeQuestions.length}
               />
 
               {/* Bottom Navigation Buttons */}
@@ -510,11 +671,11 @@ export default function App() {
                   </span>
                 </button>
 
-                {currentQuestionIndex < QUESTIONS_DATA.length - 1 ? (
+                {currentQuestionIndex < activeQuestions.length - 1 ? (
                   <button
                     type="button"
                     onClick={() =>
-                      setCurrentQuestionIndex((prev) => Math.min(QUESTIONS_DATA.length - 1, prev + 1))
+                      setCurrentQuestionIndex((prev) => Math.min(activeQuestions.length - 1, prev + 1))
                     }
                     className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-all"
                   >
@@ -548,7 +709,7 @@ export default function App() {
 
                 {/* 5 x 5 Number Grid */}
                 <div className="grid grid-cols-5 gap-2">
-                  {QUESTIONS_DATA.map((q, idx) => {
+                  {activeQuestions.map((q, idx) => {
                     const isAnswered = isQuestionAnswered(q.id);
                     const isFlagged = flaggedQuestions[q.id];
                     const isCurrent = currentQuestionIndex === idx;
@@ -559,9 +720,7 @@ export default function App() {
                         type="button"
                         onClick={() => setCurrentQuestionIndex(idx)}
                         className={`h-10 rounded-xl font-bold text-xs flex flex-col items-center justify-center relative transition-all ${
-                          isCurrent
-                            ? 'ring-2 ring-indigo-600 ring-offset-2'
-                            : ''
+                          isCurrent ? 'ring-2 ring-indigo-600 ring-offset-2' : ''
                         } ${
                           isFlagged
                             ? 'bg-amber-400 text-amber-950 shadow-xs'
@@ -591,7 +750,7 @@ export default function App() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="w-3.5 h-3.5 rounded bg-slate-100 border border-slate-300 shrink-0" />
-                    <span>Belum Dijawab ({25 - answeredCount})</span>
+                    <span>Belum Dijawab ({activeQuestions.length - answeredCount})</span>
                   </div>
                 </div>
 
@@ -619,7 +778,7 @@ export default function App() {
                   Konfirmasi Pengumpulan Ujian
                 </h3>
                 <p className="text-xs text-slate-500 mb-4">
-                  Pastikan Anda telah memeriksa semua jawaban sebelum mengumpulkan.
+                  Pastikan Anda telah memeriksa semua jawaban sebelum mengumpulkan {activeConfig.title}.
                 </p>
 
                 <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 mb-5 space-y-2 text-xs">
@@ -699,6 +858,7 @@ export default function App() {
       {showTeacherDashboard && (
         <TeacherDashboard
           submissions={submissions}
+          liveStudents={liveStudents}
           onViewStudentPdf={(sub) => {
             setActiveSubmission(sub);
             setView('result');
@@ -710,6 +870,8 @@ export default function App() {
           onUpdateSubmission={(updated) => {
             setSubmissions((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
           }}
+          onResetStudentViolations={handleResetStudentViolations}
+          onAddStudentTime={handleAddStudentTime}
           onLoadDemoData={handleLoadDemoData}
           onClose={() => setShowTeacherDashboard(false)}
         />

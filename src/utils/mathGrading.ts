@@ -1,5 +1,6 @@
-import { ExamSubmission, Question, QuestionEvaluation, StudentAnswers } from '../types/quiz';
-import { QUESTIONS_DATA, EXAM_METADATA } from '../data/questions';
+import { ExamSubmission, Question, QuestionEvaluation, StudentAnswers, SessionId } from '../types/quiz';
+import { QUESTIONS_DATA, EXAM_METADATA, PRETEST_CONFIG } from '../data/questions';
+import { DAILY_ASSESSMENT_QUESTIONS, DAILY_ASSESSMENT_CONFIG } from '../data/dailyAssessmentQuestions';
 
 export function evaluateExam(
   studentName: string,
@@ -10,11 +11,16 @@ export function evaluateExam(
   violationLogs: { time: string; reason: string }[],
   durationSeconds: number,
   options?: {
+    sessionId?: SessionId;
     autoSubmittedDueToCheating?: boolean;
     autoSubmittedDueToTimeout?: boolean;
     teacherNotes?: string;
   }
 ): ExamSubmission {
+  const sessionId: SessionId = options?.sessionId || 'pre_test';
+  const questionsList = sessionId === 'daily_assessment' ? DAILY_ASSESSMENT_QUESTIONS : QUESTIONS_DATA;
+  const sessionConfig = sessionId === 'daily_assessment' ? DAILY_ASSESSMENT_CONFIG : PRETEST_CONFIG;
+
   const evaluations: QuestionEvaluation[] = [];
   let totalScore = 0;
   let objectiveScore = 0;
@@ -22,7 +28,7 @@ export function evaluateExam(
 
   const indicatorScores: { [indicator: string]: { score: number; max: number } } = {};
 
-  QUESTIONS_DATA.forEach((q) => {
+  questionsList.forEach((q) => {
     if (!indicatorScores[q.indicator]) {
       indicatorScores[q.indicator] = { score: 0, max: 0 };
     }
@@ -250,11 +256,13 @@ export function evaluateExam(
 
   const submission: ExamSubmission = {
     id: `sub_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    sessionId,
+    sessionTitle: sessionConfig.title,
     studentName: studentName || 'Siswa SMP Ar Rohmah',
     studentClass: studentClass,
     studentNis: studentNis || '-',
     totalScore,
-    maxTotalScore: EXAM_METADATA.maxScore,
+    maxTotalScore: sessionConfig.maxScore,
     finalGrade,
     passed,
     category,

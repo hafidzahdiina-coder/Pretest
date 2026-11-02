@@ -1,6 +1,8 @@
 import React from 'react';
 import { ExamSubmission } from '../types/quiz';
-import { QUESTIONS_DATA, EXAM_METADATA } from '../data/questions';
+import { QUESTIONS_DATA, EXAM_METADATA, PRETEST_CONFIG } from '../data/questions';
+import { DAILY_ASSESSMENT_QUESTIONS, DAILY_ASSESSMENT_CONFIG } from '../data/dailyAssessmentQuestions';
+import { MathText } from './MathText';
 import {
   Printer,
   ShieldCheck,
@@ -31,6 +33,10 @@ export const StudentResultPdf: React.FC<StudentResultPdfProps> = ({
   };
 
   const isPassed = submission.passed;
+  const questionsList =
+    submission.sessionId === 'daily_assessment' ? DAILY_ASSESSMENT_QUESTIONS : QUESTIONS_DATA;
+  const sessionConfig =
+    submission.sessionId === 'daily_assessment' ? DAILY_ASSESSMENT_CONFIG : PRETEST_CONFIG;
 
   return (
     <div className="min-h-screen bg-slate-100/70 py-6 px-3 sm:px-6 print:p-0 print:bg-white text-slate-900">
@@ -48,7 +54,7 @@ export const StudentResultPdf: React.FC<StudentResultPdfProps> = ({
             </button>
           )}
           <span className="text-xs text-slate-500 font-medium">
-            Dokumen Hasil Asesmen Resmi
+            Dokumen Hasil Asesmen Resmi • {submission.sessionTitle || sessionConfig.title}
           </span>
         </div>
 
@@ -75,15 +81,32 @@ export const StudentResultPdf: React.FC<StudentResultPdfProps> = ({
 
       {/* Main Official Document Container (Designed to match the uploaded assessment result PDF) */}
       <div className="max-w-4xl mx-auto bg-white rounded-2xl sm:border border-slate-200 shadow-sm p-6 sm:p-10 print:p-4 print:border-none print:shadow-none print:max-w-none">
-        {/* Document Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-200 text-xs text-slate-500 gap-1 mb-6">
-          <div className="flex items-center gap-2 font-medium">
-            <School className="w-4 h-4 text-indigo-600" />
-            <span>{EXAM_METADATA.school}</span>
-            <span>•</span>
-            <span>{EXAM_METADATA.subtitle}</span>
+        {/* Document Official Kop Surat / Header with School Logo */}
+        <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between pb-5 border-b-2 border-slate-800 text-xs text-slate-600 gap-4 mb-6">
+          <div className="flex items-center gap-4 text-center sm:text-left">
+            <img
+              src="/assets/aistudio/images_226422da.png"
+              alt="Logo SMP Ar Rohmah Bogor"
+              className="w-16 h-16 object-contain shrink-0 drop-shadow-sm"
+            />
+            <div>
+              <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight uppercase">
+                SMP AR ROHMAH BOGOR
+              </h2>
+              <p className="text-[11px] font-bold text-slate-700">NPSN: 70061534 • TAHUN PELAJARAN 2026/2027</p>
+              <p className="text-[10px] text-slate-500">
+                Jl. Veteran III Jl. Tapos Lbc No. 18, RT.003/RW.001, Cileungsi, Kec. Ciawi, Bogor
+              </p>
+              <div className="inline-block mt-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
+                {submission.sessionTitle || sessionConfig.title}
+              </div>
+            </div>
           </div>
-          <div>{submission.submittedAt}</div>
+
+          <div className="text-right text-[11px] text-slate-500 sm:self-start">
+            <div className="font-bold text-slate-700">{submission.submittedAt}</div>
+            <div className="italic">Status: Dokumen Sah Hasil CBT</div>
+          </div>
         </div>
 
         {/* Student Profile & Final Grade Banner (Exact replica of Nailah Sakhi card in the screenshot) */}
@@ -253,7 +276,7 @@ export const StudentResultPdf: React.FC<StudentResultPdfProps> = ({
 
         {/* List of 25 Evaluated Items (Exact style as pages 2-10 of uploaded PDF) */}
         <div className="space-y-6">
-          {QUESTIONS_DATA.map((q) => {
+          {questionsList.map((q) => {
             const ev = submission.evaluations.find((e) => e.questionId === q.id);
             const isFullScore = ev && ev.score === ev.maxScore;
             const isPartial = ev && ev.score > 0 && ev.score < ev.maxScore;
@@ -296,7 +319,7 @@ export const StudentResultPdf: React.FC<StudentResultPdfProps> = ({
 
                 {/* Prompt */}
                 <div className="text-slate-900 font-medium text-sm sm:text-base mb-4 leading-relaxed whitespace-pre-line">
-                  {q.prompt}
+                  <MathText text={q.prompt} />
                 </div>
 
                 {/* Student Answer Box & Correct Answer Box */}
@@ -307,7 +330,7 @@ export const StudentResultPdf: React.FC<StudentResultPdfProps> = ({
                       JAWABAN ANDA:
                     </span>
                     <p className="font-semibold text-slate-800 whitespace-pre-line">
-                      {ev?.studentAnswerDisplay || '-'}
+                      <MathText text={ev?.studentAnswerDisplay || '-'} />
                     </p>
                     {ev?.feedback && (
                       <p className="text-[11px] text-slate-500 mt-1 italic">
@@ -322,7 +345,7 @@ export const StudentResultPdf: React.FC<StudentResultPdfProps> = ({
                       KUNCI JAWABAN MODEL:
                     </span>
                     <p className="font-semibold text-indigo-950 whitespace-pre-line">
-                      {ev?.correctAnswerDisplay || q.modelAnswer}
+                      <MathText text={ev?.correctAnswerDisplay || q.modelAnswer} />
                     </p>
                   </div>
                 </div>
@@ -330,7 +353,9 @@ export const StudentResultPdf: React.FC<StudentResultPdfProps> = ({
                 {/* Pembahasan & Rubrik */}
                 <div className="p-3.5 rounded-xl border border-slate-100 bg-slate-50 text-xs text-slate-700 space-y-1.5">
                   <p className="font-bold text-slate-800">Pembahasan & Konsep:</p>
-                  <p className="leading-relaxed whitespace-pre-line">{q.explanation}</p>
+                  <p className="leading-relaxed whitespace-pre-line">
+                    <MathText text={q.explanation} />
+                  </p>
                   <p className="text-slate-500 text-[11px] pt-1 border-t border-slate-200">
                     <strong>Pedoman Penskoran:</strong> {q.rubric}
                   </p>

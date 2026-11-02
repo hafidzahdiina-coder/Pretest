@@ -1,15 +1,13 @@
 import React, { useState, useMemo } from 'react';
-import { ExamSubmission } from '../types/quiz';
-import { EXAM_METADATA } from '../data/questions';
+import { ExamSubmission, StudentLiveMonitor, SessionId } from '../types/quiz';
+import { EXAM_METADATA, PRETEST_CONFIG } from '../data/questions';
+import { DAILY_ASSESSMENT_CONFIG } from '../data/dailyAssessmentQuestions';
 import {
   Users,
   Search,
   Filter,
-  Download,
-  Printer,
   Eye,
   Trash2,
-  TrendingUp,
   Award,
   AlertTriangle,
   CheckCircle,
@@ -17,33 +15,59 @@ import {
   PlusCircle,
   X,
   Lock,
-  ChevronRight,
   BarChart3,
   Edit3,
+  Radio,
+  Clock,
+  ShieldAlert,
+  ShieldCheck,
+  Maximize2,
+  RefreshCw,
+  Plus,
+  Copy,
+  Check,
+  KeyRound,
+  ExternalLink,
 } from 'lucide-react';
 
 interface TeacherDashboardProps {
   submissions: ExamSubmission[];
+  liveStudents: StudentLiveMonitor[];
   onViewStudentPdf: (sub: ExamSubmission) => void;
   onDeleteSubmission: (id: string) => void;
   onUpdateSubmission: (updated: ExamSubmission) => void;
+  onResetStudentViolations?: (studentId: string) => void;
+  onAddStudentTime?: (studentId: string, minutes: number) => void;
   onLoadDemoData: () => void;
   onClose: () => void;
 }
 
 export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   submissions,
+  liveStudents,
   onViewStudentPdf,
   onDeleteSubmission,
   onUpdateSubmission,
+  onResetStudentViolations,
+  onAddStudentTime,
   onLoadDemoData,
   onClose,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClass, setSelectedClass] = useState<string>('all');
+  const [selectedSession, setSelectedSession] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
-  const [activeTab, setActiveTab] = useState<'table' | 'indicators'>('table');
+  const [activeTab, setActiveTab] = useState<'table' | 'live' | 'indicators'>('table');
   const [editingSub, setEditingSub] = useState<ExamSubmission | null>(null);
+  const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<string>('');
+
+  // Handle Token Copying
+  const copyToClipboard = (token: string) => {
+    navigator.clipboard.writeText(token);
+    setCopiedToken(token);
+    setTimeout(() => setCopiedToken(null), 2000);
+  };
 
   // Filtered submissions
   const filteredSubmissions = useMemo(() => {
@@ -52,6 +76,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         sub.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         sub.studentNis.toLowerCase().includes(searchTerm.toLowerCase());
       const matchClass = selectedClass === 'all' || sub.studentClass === selectedClass;
+      const matchSession = selectedSession === 'all' || sub.sessionId === selectedSession;
       const matchStatus =
         selectedStatus === 'all'
           ? true
@@ -63,13 +88,13 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           ? sub.tabViolations > 0
           : true;
 
-      return matchSearch && matchClass && matchStatus;
+      return matchSearch && matchClass && matchSession && matchStatus;
     });
-  }, [submissions, searchTerm, selectedClass, selectedStatus]);
+  }, [submissions, searchTerm, selectedClass, selectedSession, selectedStatus]);
 
   // Statistics
   const stats = useMemo(() => {
-    const total = submissions.length;
+    const total = filteredSubmissions.length;
     if (total === 0) {
       return {
         total: 0,
@@ -82,10 +107,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       };
     }
 
-    const grades = submissions.map((s) => s.finalGrade);
+    const grades = filteredSubmissions.map((s) => s.finalGrade);
     const sum = grades.reduce((a, b) => a + b, 0);
-    const passCount = submissions.filter((s) => s.passed).length;
-    const totalViolations = submissions.reduce((sum, s) => sum + s.tabViolations, 0);
+    const passCount = filteredSubmissions.filter((s) => s.passed).length;
+    const totalViolations = filteredSubmissions.reduce((sum, s) => sum + s.tabViolations, 0);
 
     return {
       total,
@@ -96,15 +121,15 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       minGrade: Math.min(...grades),
       totalViolations,
     };
-  }, [submissions]);
+  }, [filteredSubmissions]);
 
   // Indicator Analysis aggregated across submissions
   const indicatorAnalysis = useMemo(() => {
-    if (submissions.length === 0) return [];
+    if (filteredSubmissions.length === 0) return [];
 
     const map: { [indicator: string]: { totalScore: number; totalMax: number } } = {};
 
-    submissions.forEach((sub) => {
+    filteredSubmissions.forEach((sub) => {
       Object.entries(sub.indicatorScores || {}).forEach(([ind, val]) => {
         if (!map[ind]) {
           map[ind] = { totalScore: 0, totalMax: 0 };
@@ -123,14 +148,15 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         percent,
       };
     });
-  }, [submissions]);
+  }, [filteredSubmissions]);
 
   // Export CSV
   const exportToCSV = () => {
-    if (submissions.length === 0) return;
+    if (filteredSubmissions.length === 0) return;
 
     const headers = [
       'No',
+      'Sesi Ujian',
       'Nama Siswa',
       'Kelas',
       'NIS',
@@ -143,8 +169,9 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       'Waktu Pengumpulan',
     ];
 
-    const rows = submissions.map((s, idx) => [
+    const rows = filteredSubmissions.map((s, idx) => [
       idx + 1,
+      `"${s.sessionTitle || (s.sessionId === 'daily_assessment' ? 'Daily Assessment' : 'Pre-Test')}"`,
       `"${s.studentName}"`,
       `"${s.studentClass}"`,
       `"${s.studentNis}"`,
@@ -157,14 +184,34 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       `"${s.submittedAt}"`,
     ]);
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const csvContent =
+      'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Rekap_Nilai_Matematika_ArRohmah_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute(
+      'download',
+      `Rekap_Nilai_Matematika_ArRohmah_${selectedSession}_${new Date().toISOString().slice(0, 10)}.csv`
+    );
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleTriggerDispensasi = (studentId: string, studentName: string) => {
+    if (onResetStudentViolations) {
+      onResetStudentViolations(studentId);
+      setActionNotice(`Dispensasi berhasil: Peringatan tab untuk ${studentName} telah di-reset ke 0.`);
+      setTimeout(() => setActionNotice(''), 3500);
+    }
+  };
+
+  const handleTriggerTambahWaktu = (studentId: string, studentName: string) => {
+    if (onAddStudentTime) {
+      onAddStudentTime(studentId, 10);
+      setActionNotice(`Waktu tambahan +10 Menit berhasil diberikan kepada ${studentName}.`);
+      setTimeout(() => setActionNotice(''), 3500);
+    }
   };
 
   return (
@@ -173,18 +220,20 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         {/* Top Navbar */}
         <div className="bg-slate-900 text-white px-6 py-4 flex flex-wrap items-center justify-between gap-4 border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center font-black text-white shadow-sm">
-              <Users className="w-5 h-5" />
-            </div>
+            <img
+              src="/assets/aistudio/images_226422da.png"
+              alt="Logo Ar Rohmah"
+              className="w-10 h-10 object-contain shrink-0 rounded-full bg-white p-0.5 shadow-sm"
+            />
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold">Dashboard Guru • Rekapitulasi Asesmen</h2>
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                <h2 className="text-base sm:text-lg font-bold">Dashboard Guru • Rekapitulasi & Pusat Kendala</h2>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                   PIN Terverifikasi
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                {EXAM_METADATA.school} • Matematika Kelas 7 Bilangan Rasional
+                SMP Ar Rohmah Bogor • Kelas 7 Matematika (Pre-Test & Daily Assessment)
               </p>
             </div>
           </div>
@@ -193,7 +242,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             <button
               type="button"
               onClick={exportToCSV}
-              disabled={submissions.length === 0}
+              disabled={filteredSubmissions.length === 0}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 disabled:opacity-50 transition-colors"
             >
               <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
@@ -222,13 +271,86 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           </div>
         </div>
 
+        {/* Action Notice Bar if any */}
+        {actionNotice && (
+          <div className="bg-emerald-600 text-white px-6 py-2.5 text-xs font-semibold flex items-center justify-between animate-in fade-in">
+            <span>✓ {actionNotice}</span>
+            <button type="button" onClick={() => setActionNotice('')}>
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {/* Content Body */}
         <div className="p-6 bg-slate-50/50 space-y-6">
+          {/* Active Tokens / Kode Sesi Banner */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white p-4 rounded-2xl shadow-sm border border-blue-800 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-300 block mb-0.5">
+                  Sesi 2: Daily Assessment Bab 2 Bilangan Rasional
+                </span>
+                <div className="flex items-center gap-2">
+                  <KeyRound className="w-4 h-4 text-amber-400" />
+                  <span className="font-mono text-lg font-black tracking-widest text-white">
+                    {DAILY_ASSESSMENT_CONFIG.token}
+                  </span>
+                </div>
+                <span className="text-[11px] text-blue-200">Bagikan token ini kepada siswa untuk memulai</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => copyToClipboard(DAILY_ASSESSMENT_CONFIG.token)}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-colors flex items-center gap-1.5"
+              >
+                {copiedToken === DAILY_ASSESSMENT_CONFIG.token ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-400" /> Tersalin
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" /> Salin Kode
+                  </>
+                )}
+              </button>
+            </div>
+
+            <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 rounded-2xl shadow-sm border border-slate-700 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-0.5">
+                  Sesi 1: Pre-Test Matematika (Petualangan Pecahan)
+                </span>
+                <div className="flex items-center gap-2">
+                  <KeyRound className="w-4 h-4 text-emerald-400" />
+                  <span className="font-mono text-lg font-black tracking-widest text-white">
+                    {PRETEST_CONFIG.token}
+                  </span>
+                </div>
+                <span className="text-[11px] text-slate-300">Token cadangan sesi Pre-Test</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => copyToClipboard(PRETEST_CONFIG.token)}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-colors flex items-center gap-1.5"
+              >
+                {copiedToken === PRETEST_CONFIG.token ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-400" /> Tersalin
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" /> Salin Kode
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
           {/* Summary KPI Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                Total Peserta Ujian
+                Total Lembar Selesai
               </span>
               <div className="flex items-baseline gap-2">
                 <span className="text-3xl font-black text-slate-900">{stats.total}</span>
@@ -248,32 +370,26 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
             <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                Ketuntasan (KKM {EXAM_METADATA.kkm})
+                Ketuntasan (KKM 75)
               </span>
               <div className="flex items-baseline gap-2">
                 <span className="text-3xl font-black text-emerald-600">{stats.passRate}%</span>
-                <span className="text-xs text-slate-500 font-medium">({stats.passCount} Siswa)</span>
+                <span className="text-xs text-slate-500 font-medium">({stats.passCount} Tuntas)</span>
               </div>
             </div>
 
             <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                Pelanggaran Anti-Cheat
+                Siswa Sedang Ujian
               </span>
               <div className="flex items-baseline gap-2">
-                <span
-                  className={`text-3xl font-black ${
-                    stats.totalViolations > 0 ? 'text-rose-600' : 'text-slate-900'
-                  }`}
-                >
-                  {stats.totalViolations}
-                </span>
-                <span className="text-xs text-slate-500 font-medium">Total Insiden Tab</span>
+                <span className="text-3xl font-black text-blue-600">{liveStudents.length}</span>
+                <span className="text-xs text-slate-500 font-medium">Aktif Online</span>
               </div>
             </div>
           </div>
 
-          {/* Tab Navigation (Table vs Indicator Analysis) */}
+          {/* Tab Navigation (Table vs Live Monitoring vs Indicator Analysis) */}
           <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
             <button
               type="button"
@@ -284,7 +400,19 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                   : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
               }`}
             >
-              Daftar Rekap Nilai Siswa ({filteredSubmissions.length})
+              Rekapitulasi Nilai Siswa ({filteredSubmissions.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('live')}
+              className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 ${
+                activeTab === 'live'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+              }`}
+            >
+              <Radio className="w-3.5 h-3.5 animate-pulse text-amber-400" />
+              Pemantauan Kendala & Progres Siswa ({liveStudents.length})
             </button>
             <button
               type="button"
@@ -299,7 +427,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             </button>
           </div>
 
-          {activeTab === 'table' ? (
+          {/* TAB 1: REKAPITULASI TABEL NILAI */}
+          {activeTab === 'table' && (
             <>
               {/* Filter and Search Bar */}
               <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
@@ -315,6 +444,21 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
+                  {/* Sesi Filter */}
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                    <span>Sesi:</span>
+                    <select
+                      value={selectedSession}
+                      onChange={(e) => setSelectedSession(e.target.value)}
+                      className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-slate-50 text-slate-700 outline-none"
+                    >
+                      <option value="all">Semua Sesi</option>
+                      <option value="daily_assessment">Daily Assessment Bab 2</option>
+                      <option value="pre_test">Pre-Test Cambridge</option>
+                    </select>
+                  </div>
+
+                  {/* Kelas Filter */}
                   <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
                     <Filter className="w-3.5 h-3.5" />
                     <span>Kelas:</span>
@@ -329,6 +473,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                     </select>
                   </div>
 
+                  {/* Status Filter */}
                   <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
                     <span>Status:</span>
                     <select
@@ -336,10 +481,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                       onChange={(e) => setSelectedStatus(e.target.value)}
                       className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-slate-50 text-slate-700 outline-none"
                     >
-                      <option value="all">Semua Status</option>
-                      <option value="passed">Tuntas</option>
-                      <option value="failed">Belum Tuntas</option>
-                      <option value="violation">Ada Pelanggaran Tab</option>
+                      <option value="all">Semua Nilai</option>
+                      <option value="passed">Tuntas (≥ 75)</option>
+                      <option value="failed">Belum Tuntas (&lt; 75)</option>
+                      <option value="violation">Ada Catatan Pindah Tab</option>
                     </select>
                   </div>
                 </div>
@@ -353,7 +498,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                       <tr>
                         <th className="py-3 px-4 w-12 text-center">No</th>
                         <th className="py-3 px-4">Nama Siswa</th>
-                        <th className="py-3 px-4">Kelas & NIS</th>
+                        <th className="py-3 px-4">Sesi & Kelas</th>
                         <th className="py-3 px-4 text-center">Skor (40)</th>
                         <th className="py-3 px-4 text-center">Nilai (100)</th>
                         <th className="py-3 px-4 text-center">Kategori</th>
@@ -369,18 +514,18 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                             {submissions.length === 0 ? (
                               <div className="space-y-3">
                                 <p className="text-sm font-semibold text-slate-600">
-                                  Belum ada siswa yang mengumpulkan ujian.
+                                  Belum ada hasil ujian yang dikumpulkan.
                                 </p>
                                 <button
                                   type="button"
                                   onClick={onLoadDemoData}
                                   className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
                                 >
-                                  Muat 3 Data Contoh Hasil Siswa
+                                  Muat Data Contoh Siswa
                                 </button>
                               </div>
                             ) : (
-                              <p>Tidak ada siswa yang sesuai dengan filter pencarian.</p>
+                              <p>Tidak ada data siswa yang cocok dengan filter yang dipilih.</p>
                             )}
                           </td>
                         </tr>
@@ -394,8 +539,12 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                               {sub.studentName}
                             </td>
                             <td className="py-3 px-4 text-slate-600">
-                              <span className="font-semibold block">{sub.studentClass}</span>
-                              <span className="text-[11px] text-slate-400">NIS: {sub.studentNis}</span>
+                              <span className="font-semibold block text-indigo-700">
+                                {sub.sessionId === 'daily_assessment' ? 'Daily Assessment' : 'Pre-Test'}
+                              </span>
+                              <span className="text-[11px] text-slate-500">
+                                {sub.studentClass} • NIS: {sub.studentNis}
+                              </span>
                             </td>
                             <td className="py-3 px-4 text-center font-semibold text-slate-700">
                               {sub.totalScore} / 40
@@ -452,7 +601,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                                   type="button"
                                   onClick={() => onViewStudentPdf(sub)}
                                   className="p-1.5 rounded-lg text-indigo-600 hover:bg-indigo-50 transition-colors"
-                                  title="Lihat Lembar PDF Siswa"
+                                  title="Buka Lembar PDF Siswa"
                                 >
                                   <Eye className="w-4 h-4" />
                                 </button>
@@ -460,7 +609,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                                   type="button"
                                   onClick={() => setEditingSub(sub)}
                                   className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
-                                  title="Edit / Catatan Guru"
+                                  title="Catatan Guru"
                                 >
                                   <Edit3 className="w-4 h-4" />
                                 </button>
@@ -482,13 +631,146 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                 </div>
               </div>
             </>
-          ) : (
-            /* Tab: Analisis Daya Serap per Indikator */
+          )}
+
+          {/* TAB 2: LIVE MONITORING & PUSAT KENDALA SISWA */}
+          {activeTab === 'live' && (
+            <div className="space-y-4">
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <Radio className="w-4 h-4 text-blue-600 animate-pulse" />
+                    Pusat Pengawasan Real-Time & Penanganan Kendala
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Memantau pergerakan tab, mode layar penuh, dan kendala teknis siswa selama ujian berlangsung.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
+                  <span>Sistem Pengawasan Aktif</span>
+                </div>
+              </div>
+
+              {liveStudents.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center text-slate-500 space-y-2">
+                  <Clock className="w-8 h-8 mx-auto text-slate-400" />
+                  <p className="font-bold text-slate-700">Tidak ada siswa yang sedang mengerjakan ujian saat ini.</p>
+                  <p className="text-xs">Siswa yang membuka halaman ujian akan langsung muncul di panel pemantauan ini.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {liveStudents.map((st) => {
+                    const isWarning = st.tabViolations > 0;
+                    const isCritical = st.tabViolations >= 3;
+
+                    return (
+                      <div
+                        key={st.id}
+                        className={`bg-white rounded-2xl border p-4 shadow-xs space-y-3 relative overflow-hidden transition-all ${
+                          isCritical
+                            ? 'border-rose-400 bg-rose-50/20'
+                            : isWarning
+                            ? 'border-amber-300 bg-amber-50/20'
+                            : 'border-slate-200'
+                        }`}
+                      >
+                        {/* Top Student Header */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <h4 className="font-extrabold text-sm text-slate-900">{st.studentName}</h4>
+                            <p className="text-[11px] text-slate-500 font-medium">
+                              {st.studentClass} • No: {st.studentNis}
+                            </p>
+                          </div>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            {st.sessionId === 'daily_assessment' ? 'Daily Assessment' : 'Pre-Test'}
+                          </span>
+                        </div>
+
+                        {/* Progress and Timer */}
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="bg-slate-50 p-2 rounded-xl border border-slate-200/80">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase block">Progres</span>
+                            <span className="font-bold text-slate-800">
+                              Soal {st.currentQuestionIndex + 1}/25 ({st.answeredCount} Terjawab)
+                            </span>
+                          </div>
+                          <div className="bg-slate-50 p-2 rounded-xl border border-slate-200/80">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase block">Sisa Waktu</span>
+                            <span className="font-mono font-bold text-indigo-600">
+                              {Math.floor(st.timeLeftSeconds / 60)}m {st.timeLeftSeconds % 60}s
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Status Badges */}
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                          {st.tabViolations === 0 ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold text-[11px]">
+                              <ShieldCheck className="w-3.5 h-3.5" /> Integritas Tertib (0)
+                            </span>
+                          ) : (
+                            <span
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-bold text-[11px] ${
+                                isCritical
+                                  ? 'bg-rose-100 text-rose-700 border border-rose-300'
+                                  : 'bg-amber-100 text-amber-800 border border-amber-300'
+                              }`}
+                            >
+                              <ShieldAlert className="w-3.5 h-3.5" /> {st.tabViolations}/3x Pindah Tab
+                            </span>
+                          )}
+
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold ${
+                              st.isFullscreen
+                                ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                                : 'bg-rose-50 text-rose-700 border border-rose-200'
+                            }`}
+                          >
+                            <Maximize2 className="w-3 h-3" />
+                            {st.isFullscreen ? 'Layar Penuh Terkunci' : 'Layar Tidak Penuh'}
+                          </span>
+                        </div>
+
+                        {/* Emergency Teacher Controls for Trouble */}
+                        <div className="pt-2 border-t border-slate-100 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleTriggerDispensasi(st.id, st.studentName)}
+                            className="flex-1 py-1.5 px-2 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-800 text-[11px] font-bold transition-colors flex items-center justify-center gap-1"
+                            title="Reset hitungan pelanggaran jika ada kendala sistem"
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                            Reset Tab
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleTriggerTambahWaktu(st.id, st.studentName)}
+                            className="flex-1 py-1.5 px-2 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-300 text-blue-800 text-[11px] font-bold transition-colors flex items-center justify-center gap-1"
+                            title="Beri tambahan 10 menit jika perangkat siswa terkendala"
+                          >
+                            <Plus className="w-3 h-3" />
+                            +10 Menit
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 3: ANALISIS DAYA SERAP PER INDIKATOR */}
+          {activeTab === 'indicators' && (
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
               <div>
                 <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
                   <BarChart3 className="w-5 h-5 text-indigo-600" />
-                  Analisis Ketercapaian Indikator Kompetensi (Rubrik Hal. 13)
+                  Analisis Ketercapaian Indikator Kompetensi (Rubrik Analitik Guru)
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Standar ketuntasan indikator minimal 66,7% (2/3 dari total poin indikator).
@@ -506,9 +788,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                           {ind.percent}%{' '}
                           <span
                             className={`ml-1.5 px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                              isIndPassed
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-amber-100 text-amber-800'
+                              isIndPassed ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                             }`}
                           >
                             {isIndPassed ? 'Tuntas' : 'Perlu Penguatan'}

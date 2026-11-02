@@ -7,6 +7,21 @@ export type QuestionType =
   | 'fill'
   | 'essay';
 
+export type SessionId = 'pre_test' | 'daily_assessment';
+
+export interface ExamSessionConfig {
+  id: SessionId;
+  title: string;
+  subtitle: string;
+  token: string;
+  durationMinutes: number;
+  totalQuestions: number;
+  maxScore: number;
+  kkm: number;
+  badge: string;
+  themeColor: string;
+}
+
 export interface Option {
   label: string;
   text: string;
@@ -46,6 +61,15 @@ export interface Question {
   type: QuestionType;
   maxPoints: number;
   prompt: string;
+  realIllustrationId?:
+    | 'pizza_4'
+    | 'birthday_cake_8'
+    | 'chocolate_bar_dina'
+    | 'pizza_dimakan_5'
+    | 'three_juice_glasses'
+    | 'matching_3_items'
+    | 'cyclist_road_120'
+    | 'class_36_students';
   adventurePost?: {
     id: 'pos1' | 'pos3' | 'pos4' | 'pos6' | 'pos7';
     name: string;
@@ -56,16 +80,15 @@ export interface Question {
     content: string;
     visualHint?: string;
   };
-  // Tipe Spesifik
   options?: Option[];
-  correctAnswer?: string; // Untuk MCQ single: 'A' | 'B' | 'C' | 'D'
-  correctAnswers?: string[]; // Untuk Complex MCQ: ['A', 'B', 'D']
-  statements?: StatementItem[]; // Untuk Benar-Salah
-  classificationCategories?: string[]; // Untuk Klasifikasi
+  correctAnswer?: string;
+  correctAnswers?: string[];
+  statements?: StatementItem[];
+  classificationCategories?: string[];
   classificationItems?: ClassificationItem[];
-  matchingPairs?: MatchingPair[]; // Untuk Menjodohkan
+  matchingPairs?: MatchingPair[];
   matchingChoices?: MatchingChoice[];
-  expectedKeywords?: string[]; // Untuk evaluasi otomatis isian & uraian
+  expectedKeywords?: string[];
   modelAnswer: string;
   rubric: string;
   explanation: string;
@@ -90,6 +113,8 @@ export interface QuestionEvaluation {
 
 export interface ExamSubmission {
   id: string;
+  sessionId: SessionId;
+  sessionTitle: string;
   studentName: string;
   studentClass: 'VII Akademik' | 'VII Tahfidz-Middle East';
   studentNis: string;
@@ -112,4 +137,21 @@ export interface ExamSubmission {
   essayScore: number;
   indicatorScores: { [indicator: string]: { score: number; max: number } };
   teacherNotes?: string;
+}
+
+export interface StudentLiveMonitor {
+  id: string;
+  sessionId: SessionId;
+  studentName: string;
+  studentClass: 'VII Akademik' | 'VII Tahfidz-Middle East';
+  studentNis: string;
+  currentQuestionIndex: number;
+  answeredCount: number;
+  totalQuestions: number;
+  timeLeftSeconds: number;
+  tabViolations: number;
+  isFullscreen: boolean;
+  status: 'active' | 'finished' | 'disqualified' | 'trouble';
+  lastPing: string;
+  issues: string[];
 }
