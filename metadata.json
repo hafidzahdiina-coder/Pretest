@@ -1,0 +1,6 @@
+{
+  "name": "CBT Matematika SMP Ar Rohmah Bogor IIBS - Bilangan Rasional",
+  "description": "Aplikasi Pre-Test & Daily Assessment Matematika Kelas 7 Bilangan Rasional SMP Ar Rohmah Bogor IIBS dengan 25 soal 6 tipe, anti-cheating 3 pelanggaran, timer 70 menit, nilai otomatis, dan dashboard guru.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
