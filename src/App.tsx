@@ -8,6 +8,8 @@ import {
 import {
   DAILY_ASSESSMENT_CONFIG,
   DAILY_ASSESSMENT_QUESTIONS,
+  DAILY_ASSESSMENT_TYPE2_CONFIG,
+  DAILY_ASSESSMENT_TYPE2_QUESTIONS,
 } from './data/dailyAssessmentQuestions';
 import { ExamSubmission, StudentAnswers, SessionId, StudentLiveMonitor } from './types/quiz';
 import { evaluateExam } from './utils/mathGrading';
@@ -43,9 +45,9 @@ export default function App() {
   // Screen views: 'register' | 'exam' | 'result'
   const [view, setView] = useState<'register' | 'exam' | 'result'>('register');
 
-  // Selected session: 'daily_assessment' (default) or 'pre_test'
-  const [selectedSession, setSelectedSession] = useState<SessionId>('daily_assessment');
-  const [sessionTokenInput, setSessionTokenInput] = useState(DAILY_ASSESSMENT_CONFIG.token);
+  // Selected session: 'daily_assessment_type2' (default), 'daily_assessment', or 'pre_test'
+  const [selectedSession, setSelectedSession] = useState<SessionId>('daily_assessment_type2');
+  const [sessionTokenInput, setSessionTokenInput] = useState(DAILY_ASSESSMENT_TYPE2_CONFIG.token);
 
   // Student registration state
   const [studentName, setStudentName] = useState('');
@@ -57,7 +59,7 @@ export default function App() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<StudentAnswers>({});
   const [flaggedQuestions, setFlaggedQuestions] = useState<Record<number, boolean>>({});
-  const [timeLeft, setTimeLeft] = useState(70 * 60); // 70 mins = 4200 s
+  const [timeLeft, setTimeLeft] = useState(DAILY_ASSESSMENT_TYPE2_CONFIG.durationMinutes * 60);
   const [startTime, setStartTime] = useState<number>(0);
 
   // Anti-cheating state
@@ -87,17 +89,23 @@ export default function App() {
 
   // Active Questions & Config based on selected session
   const activeQuestions = useMemo(() => {
-    return selectedSession === 'daily_assessment' ? DAILY_ASSESSMENT_QUESTIONS : QUESTIONS_DATA;
+    if (selectedSession === 'daily_assessment_type2') return DAILY_ASSESSMENT_TYPE2_QUESTIONS;
+    if (selectedSession === 'daily_assessment') return DAILY_ASSESSMENT_QUESTIONS;
+    return QUESTIONS_DATA;
   }, [selectedSession]);
 
   const activeConfig = useMemo(() => {
-    return selectedSession === 'daily_assessment' ? DAILY_ASSESSMENT_CONFIG : PRETEST_CONFIG;
+    if (selectedSession === 'daily_assessment_type2') return DAILY_ASSESSMENT_TYPE2_CONFIG;
+    if (selectedSession === 'daily_assessment') return DAILY_ASSESSMENT_CONFIG;
+    return PRETEST_CONFIG;
   }, [selectedSession]);
 
   // Sync token input when session switches
   const handleSelectSession = (sId: SessionId) => {
     setSelectedSession(sId);
-    setSessionTokenInput(sId === 'daily_assessment' ? DAILY_ASSESSMENT_CONFIG.token : PRETEST_CONFIG.token);
+    if (sId === 'daily_assessment_type2') setSessionTokenInput(DAILY_ASSESSMENT_TYPE2_CONFIG.token);
+    else if (sId === 'daily_assessment') setSessionTokenInput(DAILY_ASSESSMENT_CONFIG.token);
+    else setSessionTokenInput(PRETEST_CONFIG.token);
   };
 
   // Save submissions to localStorage
@@ -213,8 +221,7 @@ export default function App() {
     }
 
     // Validate Token Kode Ujian
-    const requiredToken =
-      selectedSession === 'daily_assessment' ? DAILY_ASSESSMENT_CONFIG.token : PRETEST_CONFIG.token;
+    const requiredToken = activeConfig.token;
     if (sessionTokenInput.trim().toUpperCase() !== requiredToken.toUpperCase()) {
       setRegError(`Kode Ujian / Token salah. Hubungi guru pengawas atau gunakan token: ${requiredToken}`);
       return;
@@ -360,13 +367,40 @@ export default function App() {
             </div>
 
             <div className="p-6 sm:p-8 space-y-6">
-              {/* Session Selector (Pre-Test vs Daily Assessment) */}
+              {/* Session Selector (Type 2 vs Type 1 vs Pre-Test) */}
               <div>
                 <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-2">
                   Pilih Sesi Ujian:
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Sesi 2: Daily Assessment (Bab 2) - New & Official */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {/* Sesi Type 2: Daily Assessment (20 Soal) */}
+                  <button
+                    type="button"
+                    onClick={() => handleSelectSession('daily_assessment_type2')}
+                    className={`p-4 rounded-2xl border-2 text-left transition-all relative ${
+                      selectedSession === 'daily_assessment_type2'
+                        ? 'border-cyan-600 bg-cyan-50/70 shadow-sm'
+                        : 'border-slate-200 hover:border-slate-300 bg-slate-50/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-cyan-700 text-white">
+                        Type 2 (20 Soal)
+                      </span>
+                      {selectedSession === 'daily_assessment_type2' && (
+                        <Check className="w-4 h-4 text-cyan-600 font-bold" />
+                      )}
+                    </div>
+                    <h3 className="font-bold text-slate-900 text-sm">Daily Assessment: Bab 2</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      20 Soal (Bagian A - E): Pilihan Ganda, Kompleks, Benar-Salah, Klasifikasi, Menjodohkan.
+                    </p>
+                    <div className="mt-2 text-[11px] font-mono text-cyan-800 font-bold flex items-center gap-1">
+                      <KeyRound className="w-3 h-3" /> Token: {DAILY_ASSESSMENT_TYPE2_CONFIG.token}
+                    </div>
+                  </button>
+
+                  {/* Sesi Type 1: Daily Assessment (25 Soal Lengkap) */}
                   <button
                     type="button"
                     onClick={() => handleSelectSession('daily_assessment')}
@@ -378,22 +412,22 @@ export default function App() {
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-blue-600 text-white">
-                        Sesi Resmi Utama
+                        Type 1 (25 Soal)
                       </span>
                       {selectedSession === 'daily_assessment' && (
                         <Check className="w-4 h-4 text-blue-600 font-bold" />
                       )}
                     </div>
-                    <h3 className="font-bold text-slate-900 text-sm">Daily Assessment: Bab 2</h3>
+                    <h3 className="font-bold text-slate-900 text-sm">Daily Assessment Lengkap</h3>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      25 Soal Lengkap: Pizza, Cokelat, Jus, Pesepeda, & 36 Siswa (6 Tipe Soal).
+                      25 Soal Lengkap: Bagian A–E ditambah Bagian F Isian & Uraian Pengerjaan Langkah.
                     </p>
                     <div className="mt-2 text-[11px] font-mono text-blue-700 font-bold flex items-center gap-1">
                       <KeyRound className="w-3 h-3" /> Token: {DAILY_ASSESSMENT_CONFIG.token}
                     </div>
                   </button>
 
-                  {/* Sesi 1: Pre-Test (Petualangan Pecahan) */}
+                  {/* Sesi Pembuka: Pre-Test Cambridge */}
                   <button
                     type="button"
                     onClick={() => handleSelectSession('pre_test')}
@@ -426,20 +460,22 @@ export default function App() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 text-center">
                   <Clock className="w-5 h-5 text-indigo-600 mx-auto mb-1" />
-                  <span className="block text-lg font-black text-slate-800">70 Menit</span>
+                  <span className="block text-lg font-black text-slate-800">{activeConfig.durationMinutes} Menit</span>
                   <span className="text-[11px] text-slate-500 font-semibold">Durasi Ujian</span>
                 </div>
 
                 <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 text-center">
                   <Layers className="w-5 h-5 text-indigo-600 mx-auto mb-1" />
-                  <span className="block text-lg font-black text-slate-800">25 Soal</span>
-                  <span className="text-[11px] text-slate-500 font-semibold">6 Tipe Soal</span>
+                  <span className="block text-lg font-black text-slate-800">{activeConfig.totalQuestions} Soal</span>
+                  <span className="text-[11px] text-slate-500 font-semibold">
+                    {selectedSession === 'daily_assessment_type2' ? '5 Tipe Soal' : '6 Tipe Soal'}
+                  </span>
                 </div>
 
                 <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 text-center">
                   <Award className="w-5 h-5 text-indigo-600 mx-auto mb-1" />
-                  <span className="block text-lg font-black text-slate-800">40 Poin</span>
-                  <span className="text-[11px] text-slate-500 font-semibold">Skor Maksimal</span>
+                  <span className="block text-lg font-black text-slate-800">{activeConfig.maxScore} Poin</span>
+                  <span className="text-[11px] text-slate-500 font-semibold">Skor Maksimal (100)</span>
                 </div>
 
                 <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-center">
@@ -700,10 +736,10 @@ export default function App() {
               <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs sticky top-24 space-y-4">
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                   <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                    Nomor Soal (25)
+                    Nomor Soal ({activeQuestions.length})
                   </h3>
                   <span className="text-xs font-semibold text-indigo-600">
-                    {answeredCount}/25 Terjawab
+                    {answeredCount}/{activeQuestions.length} Terjawab
                   </span>
                 </div>
 

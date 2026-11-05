@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ExamSubmission, StudentLiveMonitor, SessionId } from '../types/quiz';
 import { EXAM_METADATA, PRETEST_CONFIG } from '../data/questions';
-import { DAILY_ASSESSMENT_CONFIG } from '../data/dailyAssessmentQuestions';
+import { DAILY_ASSESSMENT_CONFIG, DAILY_ASSESSMENT_TYPE2_CONFIG } from '../data/dailyAssessmentQuestions';
 import {
   Users,
   Search,
@@ -284,24 +284,58 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         {/* Content Body */}
         <div className="p-6 bg-slate-50/50 space-y-6">
           {/* Active Tokens / Kode Sesi Banner */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {/* Token Sesi Type 2 (20 Soal) */}
+            <div className="bg-gradient-to-r from-cyan-900 to-blue-900 text-white p-4 rounded-2xl shadow-sm border border-cyan-700/60 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-cyan-300 block mb-0.5">
+                  Type 2: Bab 2 (20 Soal)
+                </span>
+                <div className="flex items-center gap-2">
+                  <KeyRound className="w-4 h-4 text-cyan-300" />
+                  <span className="font-mono text-base font-black tracking-widest text-white">
+                    {DAILY_ASSESSMENT_TYPE2_CONFIG.token}
+                  </span>
+                </div>
+                <span className="text-[11px] text-cyan-200">20 Soal • Max 32 Poin • 60 Mnt</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => copyToClipboard(DAILY_ASSESSMENT_TYPE2_CONFIG.token)}
+                className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-colors flex items-center gap-1"
+                title="Salin Token Type 2"
+              >
+                {copiedToken === DAILY_ASSESSMENT_TYPE2_CONFIG.token ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-400" /> Tersalin
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" /> Salin
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Token Sesi Type 1 (25 Soal Lengkap) */}
             <div className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white p-4 rounded-2xl shadow-sm border border-blue-800 flex items-center justify-between">
               <div>
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-300 block mb-0.5">
-                  Sesi 2: Daily Assessment Bab 2 Bilangan Rasional
+                  Type 1: Bab 2 (25 Soal)
                 </span>
                 <div className="flex items-center gap-2">
                   <KeyRound className="w-4 h-4 text-amber-400" />
-                  <span className="font-mono text-lg font-black tracking-widest text-white">
+                  <span className="font-mono text-base font-black tracking-widest text-white">
                     {DAILY_ASSESSMENT_CONFIG.token}
                   </span>
                 </div>
-                <span className="text-[11px] text-blue-200">Bagikan token ini kepada siswa untuk memulai</span>
+                <span className="text-[11px] text-blue-200">25 Soal • Max 40 Poin • 70 Mnt</span>
               </div>
               <button
                 type="button"
                 onClick={() => copyToClipboard(DAILY_ASSESSMENT_CONFIG.token)}
-                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-colors flex items-center gap-1.5"
+                className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-colors flex items-center gap-1"
+                title="Salin Token Type 1"
               >
                 {copiedToken === DAILY_ASSESSMENT_CONFIG.token ? (
                   <>
@@ -309,29 +343,31 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                   </>
                 ) : (
                   <>
-                    <Copy className="w-3.5 h-3.5" /> Salin Kode
+                    <Copy className="w-3.5 h-3.5" /> Salin
                   </>
                 )}
               </button>
             </div>
 
+            {/* Token Sesi Pre-Test */}
             <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 rounded-2xl shadow-sm border border-slate-700 flex items-center justify-between">
               <div>
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-0.5">
-                  Sesi 1: Pre-Test Matematika (Petualangan Pecahan)
+                  Pre-Test Petualangan Pecahan
                 </span>
                 <div className="flex items-center gap-2">
                   <KeyRound className="w-4 h-4 text-emerald-400" />
-                  <span className="font-mono text-lg font-black tracking-widest text-white">
+                  <span className="font-mono text-base font-black tracking-widest text-white">
                     {PRETEST_CONFIG.token}
                   </span>
                 </div>
-                <span className="text-[11px] text-slate-300">Token cadangan sesi Pre-Test</span>
+                <span className="text-[11px] text-slate-300">25 Soal • Max 40 Poin • 70 Mnt</span>
               </div>
               <button
                 type="button"
                 onClick={() => copyToClipboard(PRETEST_CONFIG.token)}
-                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-colors flex items-center gap-1.5"
+                className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-colors flex items-center gap-1"
+                title="Salin Token Pre-Test"
               >
                 {copiedToken === PRETEST_CONFIG.token ? (
                   <>
@@ -339,7 +375,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                   </>
                 ) : (
                   <>
-                    <Copy className="w-3.5 h-3.5" /> Salin Kode
+                    <Copy className="w-3.5 h-3.5" /> Salin
                   </>
                 )}
               </button>
@@ -453,7 +489,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                       className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-slate-50 text-slate-700 outline-none"
                     >
                       <option value="all">Semua Sesi</option>
-                      <option value="daily_assessment">Daily Assessment Bab 2</option>
+                      <option value="daily_assessment_type2">Daily Assessment Type 2 (20 Soal)</option>
+                      <option value="daily_assessment">Daily Assessment Type 1 (25 Soal)</option>
                       <option value="pre_test">Pre-Test Cambridge</option>
                     </select>
                   </div>

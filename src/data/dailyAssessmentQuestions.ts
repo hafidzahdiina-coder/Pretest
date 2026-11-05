@@ -9,8 +9,21 @@ export const DAILY_ASSESSMENT_CONFIG: ExamSessionConfig = {
   totalQuestions: 25,
   maxScore: 40,
   kkm: 75,
-  badge: 'Sesi Resmi: Daily Assessment Bab 2',
+  badge: 'Sesi Resmi: Daily Assessment Bab 2 (25 Soal)',
   themeColor: 'from-blue-700 via-indigo-800 to-slate-900',
+};
+
+export const DAILY_ASSESSMENT_TYPE2_CONFIG: ExamSessionConfig = {
+  id: 'daily_assessment_type2',
+  title: 'Daily Assessment: Bab 2 Bilangan Rasional (Type 2)',
+  subtitle: '20 Soal (Bagian A - E) • SMP Ar Rohmah Bogor',
+  token: 'DAILY7TIPE2',
+  durationMinutes: 60,
+  totalQuestions: 20,
+  maxScore: 32,
+  kkm: 75,
+  badge: 'Sesi Type 2: 20 Soal Bab 2',
+  themeColor: 'from-cyan-800 via-blue-900 to-slate-900',
 };
 
 export const DAILY_ASSESSMENT_QUESTIONS: Question[] = [
@@ -23,10 +36,6 @@ export const DAILY_ASSESSMENT_QUESTIONS: Question[] = [
     type: 'mcq',
     maxPoints: 1,
     indicator: 'Mengubah pecahan tak wajar dan bilangan campuran',
-    conceptBox: {
-      title: 'Catatan Istilah: Pecahan Wajar, Tak Wajar, & Bilangan Campuran',
-      content: 'Pecahan tak wajar dan bilangan campuran dapat saling diubah. Contoh: 9/4 = 2 1/4 menyatakan nilai yang sama.',
-    },
     realIllustrationId: 'pizza_4',
     prompt: 'Perhatikan gambar pizza berikut. Banyak pizza yang tersedia adalah 23/6. Tulislah 23/6 sebagai bilangan campuran.',
     options: [
@@ -572,3 +581,9 @@ export const DAILY_ASSESSMENT_QUESTIONS: Question[] = [
     explanation: 'Langkah 1: Hitung 3/8 dari 240 = (3 × 240)/8 = 720/8 = 90.\nLangkah 2: Hitung 45% dari 120 = (45/100) × 120 = 54.\nLangkah 3: Kurangkan: 90 − 54 = 36.\nJawaban akhir: 36.',
   },
 ];
+
+/**
+ * Type 2: 20 Soal Daily Assessment Bab 2 (Bagian A, B, C, D, E)
+ * Total Skor Maksimal = 32 Poin, dikonversi ke skala 100.
+ */
+export const DAILY_ASSESSMENT_TYPE2_QUESTIONS: Question[] = DAILY_ASSESSMENT_QUESTIONS.slice(0, 20);

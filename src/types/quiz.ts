@@ -7,7 +7,7 @@ export type QuestionType =
   | 'fill'
   | 'essay';
 
-export type SessionId = 'pre_test' | 'daily_assessment';
+export type SessionId = 'pre_test' | 'daily_assessment' | 'daily_assessment_type2';
 
 export interface ExamSessionConfig {
   id: SessionId;

@@ -194,5 +194,64 @@ export function getSampleSubmissions(): ExamSubmission[] {
     }
   );
 
-  return [sub1, sub2, sub3];
+  // 4. Fatima Az-Zahra - Daily Assessment Bab 2 Type 2 (20 Soal, Max 32 Poin)
+  const answersType2: Record<number, any> = {
+    1: 'B',
+    2: 'C',
+    3: 'A',
+    4: 'D',
+    5: 'C',
+    6: 'D',
+    7: 'B',
+    8: 'C',
+    9: ['A', 'C', 'D'],
+    10: ['A', 'C', 'D'],
+    11: ['A', 'C', 'E'],
+    12: { '12a': 'S', '12b': 'B', '12c': 'B' },
+    13: { '13a': 'B', '13b': 'B', '13c': 'S' },
+    14: { '14a': 'B', '14b': 'S', '14c': 'B' },
+    15: {
+      '15a': 'Kurang dari 1/3',
+      '15b': 'Sama dengan 1/3',
+      '15c': 'Lebih dari 1/3',
+      '15d': 'Sama dengan 1/3',
+      '15e': 'Kurang dari 1/3',
+      '15f': 'Lebih dari 1/3',
+    },
+    16: {
+      '16a': 'Pecahan tak wajar',
+      '16b': 'Bilangan campuran',
+      '16c': 'Pecahan wajar',
+      '16d': 'Pecahan tak wajar',
+      '16e': 'Bilangan campuran',
+      '16f': 'Pecahan wajar',
+    },
+    17: {
+      '17a': 'Pangkat positif (n > 0)',
+      '17b': 'Pangkat negatif (n < 0)',
+      '17c': 'Pangkat positif (n > 0)',
+      '17d': 'Pangkat negatif (n < 0)',
+      '17e': 'Pangkat positif (n > 0)',
+      '17f': 'Pangkat negatif (n < 0)',
+    },
+    18: { '18_1': 'D', '18_2': 'A', '18_3': 'C', '18_4': 'B' },
+    19: { '19_1': 'D', '19_2': 'C', '19_3': 'A', '19_4': 'B' },
+    20: { '20_1': 'B', '20_2': 'A', '20_3': 'C' },
+  };
+
+  const sub4 = evaluateExam(
+    'Fatima Az-Zahra',
+    'VII Akademik',
+    '09',
+    answersType2,
+    0,
+    [],
+    2150,
+    {
+      sessionId: 'daily_assessment_type2',
+      teacherNotes: 'Sempurna pada Sesi Type 2 (20 Soal Bagian A s/d E). Nilai 100.',
+    }
+  );
+
+  return [sub4, sub1, sub2, sub3];
 }

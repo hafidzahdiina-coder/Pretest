@@ -46,19 +46,6 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         </div>
       </div>
 
-      {/* Concept Box if present */}
-      {question.conceptBox && (
-        <div className="mb-6 rounded-xl border border-sky-200 bg-sky-50/70 p-4 text-xs sm:text-sm text-sky-900 shadow-sm">
-          <div className="flex items-center gap-2 font-bold text-sky-800 mb-1">
-            <Info className="w-4 h-4 text-sky-600 shrink-0" />
-            <span>{question.conceptBox.title}</span>
-          </div>
-          <p className="leading-relaxed text-sky-800/90">
-            <MathText text={question.conceptBox.content} />
-          </p>
-        </div>
-      )}
-
       {/* Real-life Illustrations for Daily Assessment */}
       {question.realIllustrationId && (
         <div className="mb-6">

@@ -1,7 +1,12 @@
 import React from 'react';
 import { ExamSubmission } from '../types/quiz';
 import { QUESTIONS_DATA, EXAM_METADATA, PRETEST_CONFIG } from '../data/questions';
-import { DAILY_ASSESSMENT_QUESTIONS, DAILY_ASSESSMENT_CONFIG } from '../data/dailyAssessmentQuestions';
+import {
+  DAILY_ASSESSMENT_QUESTIONS,
+  DAILY_ASSESSMENT_CONFIG,
+  DAILY_ASSESSMENT_TYPE2_QUESTIONS,
+  DAILY_ASSESSMENT_TYPE2_CONFIG,
+} from '../data/dailyAssessmentQuestions';
 import { MathText } from './MathText';
 import {
   Printer,
@@ -34,9 +39,18 @@ export const StudentResultPdf: React.FC<StudentResultPdfProps> = ({
 
   const isPassed = submission.passed;
   const questionsList =
-    submission.sessionId === 'daily_assessment' ? DAILY_ASSESSMENT_QUESTIONS : QUESTIONS_DATA;
+    submission.sessionId === 'daily_assessment_type2'
+      ? DAILY_ASSESSMENT_TYPE2_QUESTIONS
+      : submission.sessionId === 'daily_assessment'
+      ? DAILY_ASSESSMENT_QUESTIONS
+      : QUESTIONS_DATA;
+
   const sessionConfig =
-    submission.sessionId === 'daily_assessment' ? DAILY_ASSESSMENT_CONFIG : PRETEST_CONFIG;
+    submission.sessionId === 'daily_assessment_type2'
+      ? DAILY_ASSESSMENT_TYPE2_CONFIG
+      : submission.sessionId === 'daily_assessment'
+      ? DAILY_ASSESSMENT_CONFIG
+      : PRETEST_CONFIG;
 
   return (
     <div className="min-h-screen bg-slate-100/70 py-6 px-3 sm:px-6 print:p-0 print:bg-white text-slate-900">

@@ -1,6 +1,11 @@
 import { ExamSubmission, Question, QuestionEvaluation, StudentAnswers, SessionId } from '../types/quiz';
 import { QUESTIONS_DATA, EXAM_METADATA, PRETEST_CONFIG } from '../data/questions';
-import { DAILY_ASSESSMENT_QUESTIONS, DAILY_ASSESSMENT_CONFIG } from '../data/dailyAssessmentQuestions';
+import {
+  DAILY_ASSESSMENT_QUESTIONS,
+  DAILY_ASSESSMENT_CONFIG,
+  DAILY_ASSESSMENT_TYPE2_QUESTIONS,
+  DAILY_ASSESSMENT_TYPE2_CONFIG,
+} from '../data/dailyAssessmentQuestions';
 
 export function evaluateExam(
   studentName: string,
@@ -18,8 +23,19 @@ export function evaluateExam(
   }
 ): ExamSubmission {
   const sessionId: SessionId = options?.sessionId || 'pre_test';
-  const questionsList = sessionId === 'daily_assessment' ? DAILY_ASSESSMENT_QUESTIONS : QUESTIONS_DATA;
-  const sessionConfig = sessionId === 'daily_assessment' ? DAILY_ASSESSMENT_CONFIG : PRETEST_CONFIG;
+  const questionsList =
+    sessionId === 'daily_assessment_type2'
+      ? DAILY_ASSESSMENT_TYPE2_QUESTIONS
+      : sessionId === 'daily_assessment'
+      ? DAILY_ASSESSMENT_QUESTIONS
+      : QUESTIONS_DATA;
+
+  const sessionConfig =
+    sessionId === 'daily_assessment_type2'
+      ? DAILY_ASSESSMENT_TYPE2_CONFIG
+      : sessionId === 'daily_assessment'
+      ? DAILY_ASSESSMENT_CONFIG
+      : PRETEST_CONFIG;
 
   const evaluations: QuestionEvaluation[] = [];
   let totalScore = 0;
@@ -230,24 +246,25 @@ export function evaluateExam(
     });
   });
 
-  const finalGrade = Math.round((totalScore / EXAM_METADATA.maxScore) * 100);
-  const passed = finalGrade >= EXAM_METADATA.kkm;
+  const maxTotalScore = sessionConfig.maxScore;
+  const finalGrade = Math.min(100, Math.round((totalScore / maxTotalScore) * 100));
+  const passed = finalGrade >= sessionConfig.kkm;
 
   let category: 'Sangat Baik' | 'Baik' | 'Cukup' | 'Perlu Bimbingan';
   let categoryDescription: string;
 
-  if (totalScore >= 35) {
+  if (finalGrade >= 85) {
     category = 'Sangat Baik';
-    categoryDescription = 'Memahami konsep dan operasi pecahan, desimal, persen, dan notasi ilmiah. Mampu menyelesaikan berbagai tipe soal, termasuk soal cerita bertahap.';
-  } else if (totalScore >= 29) {
+    categoryDescription = 'Memahami konsep dan operasi pecahan, desimal, persen, dan notasi ilmiah. Mampu menyelesaikan berbagai tipe soal.';
+  } else if (finalGrade >= 75) {
     category = 'Baik';
-    categoryDescription = 'Menguasai sebagian besar konsep. Kesalahan kecil muncul pada soal kompleks atau uraian.';
-  } else if (totalScore >= 24) {
+    categoryDescription = 'Menguasai sebagian besar konsep bilangan rasional. Kesalahan kecil muncul pada soal kompleks atau pengelompokan.';
+  } else if (finalGrade >= 60) {
     category = 'Cukup';
-    categoryDescription = 'Menguasai operasi dasar, tetapi masih ragu pada penyamaan penyebut, pengelompokan, atau soal cerita.';
+    categoryDescription = 'Menguasai operasi dasar, tetapi masih ragu pada penyamaan penyebut atau operasi hitung pecahan.';
   } else {
     category = 'Perlu Bimbingan';
-    categoryDescription = 'Konsep dasar belum kuat. Diperlukan pengulangan materi dengan alat peraga dan gambar.';
+    categoryDescription = 'Konsep dasar belum kuat. Diperlukan pengulangan materi dengan bimbingan dan peraga visual.';
   }
 
   const minutes = Math.floor(durationSeconds / 60);
